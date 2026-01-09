@@ -138,11 +138,35 @@ cd app-frontend
 bun install      # หรือใช้ npm install หรือ yarn install
 ```
 
+# หรือ
+
+```bash
+cd app-frontend
+npm install
+```
+
+```bash
+cd app-frontend
+yarn install
+```
+
 #### Backend
 
 ```bash
 cd app-backend
 bun install      # หรือใช้ npm install หรือ yarn install
+```
+
+# หรือ
+
+```bash
+cd app-backend
+npm install
+```
+
+```bash
+cd app-backend
+yarn install
 ```
 
 ---
@@ -156,6 +180,18 @@ cd app-backend
 bun run dev      # หรือใช้ npm run dev หรือ yarn run dev
 ```
 
+# หรือ
+
+```bash
+cd app-backend
+npm run dev
+```
+
+```bash
+cd app-backend
+yarn run dev
+```
+
 Backend จะทำงานที่: `http://localhost:3000`
 
 ### 2. Start Frontend Development Server
@@ -163,6 +199,18 @@ Backend จะทำงานที่: `http://localhost:3000`
 ```bash
 cd app-frontend
 bun run dev      # หรือใช้ npm run dev หรือ yarn run dev
+```
+
+# หรือ
+
+```bash
+cd app-frontend
+npm run dev
+```
+
+```bash
+cd app-frontend
+yarn run dev
 ```
 
 Frontend จะทำงานที่: `http://localhost:5173`
