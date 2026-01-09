@@ -98,6 +98,22 @@ test-shop-management/
 
 ---
 
+## ⚡ Runtime Compatibility
+
+โปรเจคนี้สามารถใช้งานได้กับ **Bun**, **Node.js** (เช่น npm, yarn) ทุกคำสั่ง dev/build/lint สามารถรันผ่าน runtime ที่คุณเลือกได้
+
+- ถ้าใช้ **Bun**: ใช้ `bun install`, `bun run dev`, ...
+- ถ้าใช้ **npm**: ใช้ `npm install`, `npm run dev`, ...
+- ถ้าใช้ **yarn**: ใช้ `yarn install`, `yarn run dev`, ...
+
+> **หมายเหตุ:**
+>
+> - Node.js เวอร์ชันที่รองรับ: 20.19.0 ขึ้นไป หรือ 22.12.0 ขึ้นไป
+> - Bun จะเร็วกว่า แต่ไม่บังคับ
+> - สคริปต์ใน package.json รองรับทุก runtime
+
+---
+
 ## 📦 Installation
 
 ### Prerequisites
@@ -119,14 +135,14 @@ cd test-shop-management
 
 ```bash
 cd app-frontend
-bun install
+bun install      # หรือใช้ npm install หรือ yarn install
 ```
 
 #### Backend
 
 ```bash
 cd app-backend
-bun install
+bun install      # หรือใช้ npm install หรือ yarn install
 ```
 
 ---
@@ -137,7 +153,7 @@ bun install
 
 ```bash
 cd app-backend
-bun run dev
+bun run dev      # หรือใช้ npm run dev หรือ yarn run dev
 ```
 
 Backend จะทำงานที่: `http://localhost:3000`
@@ -146,7 +162,7 @@ Backend จะทำงานที่: `http://localhost:3000`
 
 ```bash
 cd app-frontend
-bun run dev
+bun run dev      # หรือใช้ npm run dev หรือ yarn run dev
 ```
 
 Frontend จะทำงานที่: `http://localhost:5173`
@@ -205,19 +221,31 @@ http://localhost:3000/api-docs
 
 ### Frontend (`app-frontend/`)
 
-| Script            | Description               |
-| ----------------- | ------------------------- |
-| `bun dev`         | Start development server  |
-| `bun run build`   | Build for production      |
-| `bun run preview` | Preview production build  |
-| `bun lint`        | Run ESLint + Oxlint       |
-| `bun format`      | Format code with Prettier |
+| Script             | Description               |
+| ------------------ | ------------------------- |
+| `bun dev`          | Start development server  |
+| `npm run dev`      | Start development server  |
+| `yarn run dev`     | Start development server  |
+| `bun run build`    | Build for production      |
+| `npm run build`    | Build for production      |
+| `yarn run build`   | Build for production      |
+| `bun run preview`  | Preview production build  |
+| `npm run preview`  | Preview production build  |
+| `yarn run preview` | Preview production build  |
+| `bun lint`         | Run ESLint + Oxlint       |
+| `npm run lint`     | Run ESLint + Oxlint       |
+| `yarn run lint`    | Run ESLint + Oxlint       |
+| `bun format`       | Format code with Prettier |
+| `npm run format`   | Format code with Prettier |
+| `yarn run format`  | Format code with Prettier |
 
 ### Backend (`app-backend/`)
 
-| Script        | Description                              |
-| ------------- | ---------------------------------------- |
-| `bun run dev` | Start development server with hot reload |
+| Script         | Description                              |
+| -------------- | ---------------------------------------- |
+| `bun run dev`  | Start development server with hot reload |
+| `npm run dev`  | Start development server with hot reload |
+| `yarn run dev` | Start development server with hot reload |
 
 ---
 
