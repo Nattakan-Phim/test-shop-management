@@ -135,11 +135,10 @@ cd test-shop-management
 
 ```bash
 cd app-frontend
-bun install      # หรือใช้ npm install หรือ yarn install
+bun install
 ```
 
 # หรือ
-
 ```bash
 cd app-frontend
 npm install
@@ -147,14 +146,14 @@ npm install
 
 ```bash
 cd app-frontend
-yarn install
+yarn install      
 ```
 
 #### Backend
 
 ```bash
 cd app-backend
-bun install      # หรือใช้ npm install หรือ yarn install
+bun install
 ```
 
 # หรือ
@@ -177,7 +176,7 @@ yarn install
 
 ```bash
 cd app-backend
-bun run dev      # หรือใช้ npm run dev หรือ yarn run dev
+bun run dev
 ```
 
 # หรือ
@@ -198,7 +197,7 @@ Backend จะทำงานที่: `http://localhost:3000`
 
 ```bash
 cd app-frontend
-bun run dev      # หรือใช้ npm run dev หรือ yarn run dev
+bun run dev
 ```
 
 # หรือ
