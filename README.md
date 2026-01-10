@@ -139,6 +139,7 @@ bun install
 ```
 
 # หรือ
+
 ```bash
 cd app-frontend
 npm install
@@ -146,7 +147,7 @@ npm install
 
 ```bash
 cd app-frontend
-yarn install      
+yarn install
 ```
 
 #### Backend
@@ -318,6 +319,4 @@ Made with ❤️ using Vue.js and Express.js
 
 ---
 
-<div align="center">
-  <sub>⭐ Star this repository if you find it helpful!</sub>
-</div>
+> **Note:** use for test at @WorkmotionCorp only
