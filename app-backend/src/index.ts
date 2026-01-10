@@ -1,4 +1,5 @@
 import express, { type Request, type Response } from 'express';
+import cors from 'cors';
 import swaggerUi from 'swagger-ui-express';
 import { connectDatabase } from './config/database.js';
 import { swaggerDocument } from './config/swagger.js';
@@ -8,6 +9,10 @@ const app = express();
 const port = 3000;
 
 // Middleware
+app.use(cors({
+  origin: 'http://localhost:5173', // Allow frontend origin
+  credentials: true,
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

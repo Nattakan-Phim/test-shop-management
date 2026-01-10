@@ -1,491 +1,734 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted, computed } from 'vue'
+import { RouterLink } from 'vue-router'
+import AppLayout from '@/components/AppLayout.vue'
+import { productService } from '@/services/product.service'
+import { categoryService } from '@/services/category.service'
+import type { Product, Category as ApiCategory } from '@/types/api.types'
 
-const stats = ref([
-  { label: 'สินค้าทั้งหมด', value: 1250, icon: '📦', color: '#6366f1' },
-  { label: 'หมวดหมู่', value: 24, icon: '🏷️', color: '#8b5cf6' },
-  { label: 'ยอดขายวันนี้', value: '฿15,890', icon: '💰', color: '#10b981' },
-  { label: 'ออเดอร์ใหม่', value: 48, icon: '🛒', color: '#f59e0b' },
+const products = ref<Product[]>([])
+const categories = ref<ApiCategory[]>([])
+const loading = ref(false)
+
+// Store total counts from pagination
+const totalProducts = ref(0)
+const totalCategories = ref(0)
+
+// Computed stats from real data
+const stats = computed(() => [
+  {
+    label: 'Total Products',
+    value: totalProducts.value,
+    icon: '📦',
+    color: '#6366f1',
+    trend: totalProducts.value > 10 ? '--' : '--',
+    route: '/products'
+  },
+  {
+    label: 'Categories',
+    value: totalCategories.value,
+    icon: '🏷️',
+    color: '#8b5cf6',
+    trend: totalCategories.value > 5 ? '--' : '--',
+    route: '/categories'
+  },
+  {
+    label: 'Inventory Value',
+    value: formatPrice(products.value.reduce((sum, p) => sum + p.price * p.quantity, 0)),
+    icon: '💰',
+    color: '#10b981',
+    trend: '+8%',
+    route: '/products'
+  },
+  {
+    label: 'Stock Remaining',
+    value: products.value.reduce((sum, p) => sum + p.quantity, 0).toLocaleString('en-US'),
+    icon: '📊',
+    color: '#f59e0b',
+    trend: '-2%',
+    route: '/products'
+  },
 ])
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const quickActions = ref([
-  { title: 'จัดการสินค้า', description: 'เพิ่ม แก้ไข ลบสินค้า', icon: '📋', route: '/products' },
-  { title: 'จัดการหมวดหมู่', description: 'จัดระเบียบหมวดหมู่สินค้า', icon: '📁', route: '/categories' },
-  { title: 'รายงานยอดขาย', description: 'ดูสถิติและรายงาน', icon: '📊', route: '/reports' },
-  { title: 'ตั้งค่าระบบ', description: 'ปรับแต่งการทำงาน', icon: '⚙️', route: '/settings' },
+  {
+    title: 'Manage Products',
+    description: 'Add, edit, delete products',
+    icon: '📋',
+    route: '/products',
+    gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+  },
+  {
+    title: 'Manage Categories',
+    description: 'Organize product categories',
+    icon: '📁',
+    route: '/categories',
+    gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)'
+  },
+  {
+    title: 'Sales Reports',
+    description: 'View statistics and reports',
+    icon: '📊',
+    route: '/reports',
+    gradient: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)'
+  },
+  {
+    title: 'System Settings',
+    description: 'Customize functionality',
+    icon: '⚙️',
+    route: '/settings',
+    gradient: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)'
+  },
 ])
 
-const recentProducts = ref([
-  { id: 1, name: 'iPhone 15 Pro Max', category: 'สมาร์ทโฟน', price: 48900, stock: 25 },
-  { id: 2, name: 'MacBook Pro 14"', category: 'แล็ปท็อป', price: 69900, stock: 12 },
-  { id: 3, name: 'AirPods Pro 2', category: 'หูฟัง', price: 8990, stock: 50 },
-  { id: 4, name: 'iPad Air', category: 'แท็บเล็ต', price: 24900, stock: 18 },
-  { id: 5, name: 'Apple Watch Ultra', category: 'สมาร์ทวอทช์', price: 31900, stock: 8 },
-])
+// Get recent products (latest 5)
+const recentProducts = computed(() => {
+  return [...products.value]
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 5)
+})
+
+// Get category name from product
+const getCategoryName = (product: Product): string => {
+  if (typeof product.categoryId === 'object' && product.categoryId !== null) {
+    return (product.categoryId as ApiCategory).name
+  }
+  const category = categories.value.find(c => c._id === product.categoryId)
+  return category?.name || 'Unspecified'
+}
+
+// Fetch data from API with pagination
+const fetchData = async () => {
+  loading.value = true
+  try {
+    const [productsRes, categoriesRes] = await Promise.all([
+      productService.getAll({ page: 1, limit: 10 }),
+      categoryService.getAll({ page: 1, limit: 100 })
+    ])
+    products.value = productsRes.data
+    categories.value = categoriesRes.data
+    totalProducts.value = productsRes.pagination.totalCount
+    totalCategories.value = categoriesRes.pagination.totalCount
+  } catch (err) {
+    console.error('Error fetching data:', err)
+  } finally {
+    loading.value = false
+  }
+}
 
 const formatPrice = (price: number) => {
-  return new Intl.NumberFormat('th-TH', {
+  return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'THB',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
   }).format(price)
 }
+
+const getTimeOfDay = () => {
+  const hour = new Date().getHours()
+  if (hour < 12) return 'Good Morning'
+  if (hour < 18) return 'Good Afternoon'
+  return 'Good Evening'
+}
+
+onMounted(() => {
+  fetchData()
+})
 </script>
 
 <template>
-  <div class="home-page">
-    <!-- Header Section -->
-    <header class="header">
-      <div class="header-content">
-        <div class="logo">
-          <span class="logo-icon">🏪</span>
-          <h1>Shop Management</h1>
+  <AppLayout>
+    <div class="home-page">
+      <!-- Hero Section with Gradient Background -->
+      <section class="hero-section">
+        <div class="hero-content">
+          <div class="hero-text">
+            <h1 class="hero-title">{{ getTimeOfDay() }}! 👋</h1>
+            <p class="hero-subtitle">Welcome to Shop Management System</p>
+          </div>
+          <div class="hero-date">
+            <span class="date-icon">📅</span>
+            <span class="date-text">{{ new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) }}</span>
+          </div>
         </div>
-        <nav class="nav-menu">
-          <a href="#" class="nav-link active">หน้าแรก</a>
-          <a href="#" class="nav-link">สินค้า</a>
-          <a href="#" class="nav-link">หมวดหมู่</a>
-          <a href="#" class="nav-link">รายงาน</a>
-        </nav>
-        <div class="user-menu">
-          <span class="user-avatar">👤</span>
-          <span class="user-name">Admin</span>
-        </div>
+      </section>
+
+      <!-- Loading State -->
+      <div v-if="loading" class="loading-container">
+        <div class="spinner"></div>
+        <p>Loading data...</p>
       </div>
-    </header>
 
-    <!-- Main Content -->
-    <main class="main-content">
-      <!-- Welcome Section -->
-      <section class="welcome-section">
-        <div class="welcome-text">
-          <h2>ยินดีต้อนรับกลับมา! 👋</h2>
-          <p>นี่คือภาพรวมของร้านค้าของคุณในวันนี้</p>
-        </div>
-        <div class="date-display">
-          <span class="date-icon">📅</span>
-          <span>{{ new Date().toLocaleDateString('th-TH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) }}</span>
-        </div>
-      </section>
-
-      <!-- Stats Cards -->
-      <section class="stats-section">
-        <div
-          v-for="stat in stats"
-          :key="stat.label"
-          class="stat-card"
-          :style="{ '--accent-color': stat.color }"
-        >
-          <div class="stat-icon">{{ stat.icon }}</div>
-          <div class="stat-info">
-            <span class="stat-value">{{ stat.value }}</span>
-            <span class="stat-label">{{ stat.label }}</span>
-          </div>
-        </div>
-      </section>
-
-      <!-- Quick Actions -->
-      <section class="quick-actions-section">
-        <h3 class="section-title">
-          <span class="title-icon">⚡</span>
-          การดำเนินการด่วน
-        </h3>
-        <div class="actions-grid">
-          <div
-            v-for="action in quickActions"
-            :key="action.title"
-            class="action-card"
+      <template v-else>
+        <!-- Stats Cards with Glassmorphism -->
+        <section class="stats-section">
+          <RouterLink
+            v-for="stat in stats"
+            :key="stat.label"
+            :to="stat.route"
+            class="stat-card-link"
           >
-            <div class="action-icon">{{ action.icon }}</div>
-            <div class="action-content">
-              <h4>{{ action.title }}</h4>
-              <p>{{ action.description }}</p>
+            <div class="stat-card" :style="{ '--accent-color': stat.color }">
+              <div class="stat-header">
+                <div class="stat-icon-wrapper">
+                  <span class="stat-icon">{{ stat.icon }}</span>
+                </div>
+                <span class="stat-trend" :class="{ positive: stat.trend.startsWith('+'), negative: stat.trend.startsWith('-') }">
+                  {{ stat.trend }}
+                </span>
+              </div>
+              <div class="stat-body">
+                <div class="stat-value">{{ stat.value }}</div>
+                <div class="stat-label">{{ stat.label }}</div>
+              </div>
+              <div class="stat-bar"></div>
             </div>
-            <div class="action-arrow">→</div>
+          </RouterLink>
+        </section>
+
+        <!-- Quick Actions with Gradient Cards -->
+        <!-- <section class="quick-actions-section">
+          <div class="section-header">
+            <h2 class="section-title">
+              <span class="title-icon">⚡</span>
+              Quick Actions
+            </h2>
+            <p class="section-subtitle">Quickly access main features</p>
           </div>
-        </div>
-      </section>
+          <div class="actions-grid">
+            <RouterLink
+              v-for="action in quickActions"
+              :key="action.title"
+              :to="action.route"
+              class="action-card"
+              :style="{ '--card-gradient': action.gradient }"
+            >
+              <div class="action-icon-wrapper">
+                <span class="action-icon">{{ action.icon }}</span>
+              </div>
+              <div class="action-content">
+                <h3 class="action-title">{{ action.title }}</h3>
+                <p class="action-description">{{ action.description }}</p>
+              </div>
+              <div class="action-arrow">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M5 12h14M12 5l7 7-7 7"/>
+                </svg>
+              </div>
+            </RouterLink>
+          </div>
+        </section> -->
 
-      <!-- Recent Products -->
-      <section class="recent-section">
-        <h3 class="section-title">
-          <span class="title-icon">🆕</span>
-          สินค้าล่าสุด
-        </h3>
-        <div class="products-table-wrapper">
-          <table class="products-table">
-            <thead>
-              <tr>
-                <th>รหัส</th>
-                <th>ชื่อสินค้า</th>
-                <th>หมวดหมู่</th>
-                <th>ราคา</th>
-                <th>คงเหลือ</th>
-                <th>การจัดการ</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="product in recentProducts" :key="product.id">
-                <td class="product-id">#{{ product.id }}</td>
-                <td class="product-name">{{ product.name }}</td>
-                <td>
-                  <span class="category-badge">{{ product.category }}</span>
-                </td>
-                <td class="product-price">{{ formatPrice(product.price) }}</td>
-                <td>
-                  <span
-                    class="stock-badge"
-                    :class="{ low: product.stock < 15 }"
-                  >
-                    {{ product.stock }} ชิ้น
-                  </span>
-                </td>
-                <td class="actions-cell">
-                  <button class="btn-icon" title="ดู">👁️</button>
-                  <button class="btn-icon" title="แก้ไข">✏️</button>
-                  <button class="btn-icon delete" title="ลบ">🗑️</button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
-    </main>
+        <!-- Recent Products with Modern Table -->
+        <section class="recent-section">
+          <div class="section-header">
+            <h2 class="section-title">
+              <span class="title-icon">🆕</span>
+              Recent Products
+            </h2>
+            <RouterLink to="/products" class="view-all-link">
+              View All
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 12h14M12 5l7 7-7 7"/>
+              </svg>
+            </RouterLink>
+          </div>
 
-    <!-- Footer -->
-    <footer class="footer">
-      <p>© 2026 Shop Management System. Made with ❤️ using Vue.js</p>
-    </footer>
-  </div>
+          <div v-if="recentProducts.length === 0" class="empty-state">
+            <div class="empty-icon">📦</div>
+            <p class="empty-text">No products in the system yet</p>
+            <RouterLink to="/products" class="btn-add-product">Add First Product</RouterLink>
+          </div>
+
+          <div v-else class="table-wrapper">
+            <table class="modern-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Product Name</th>
+                  <th>Category</th>
+                  <th>Price</th>
+                  <th>Stock</th>
+                  <th>Added</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="product in recentProducts" :key="product._id">
+                  <td>
+                    <span class="product-id">#{{ product._id.slice(-6) }}</span>
+                  </td>
+                  <td>
+                    <div class="product-info">
+                      <span class="product-name">{{ product.name }}</span>
+                      <span class="product-desc">{{ product.description?.slice(0, 50) || '-' }}</span>
+                    </div>
+                  </td>
+                  <td>
+                    <span class="category-tag">{{ getCategoryName(product) }}</span>
+                  </td>
+                  <td>
+                    <span class="product-price">{{ formatPrice(product.price) }}</span>
+                  </td>
+                  <td>
+                    <span class="stock-badge" :class="{ low: product.quantity < 15, medium: product.quantity >= 15 && product.quantity < 50, high: product.quantity >= 50 }">
+                      <span class="stock-dot"></span>
+                      {{ product.quantity }} units
+                    </span>
+                  </td>
+                  <td>
+                    <span class="date-text">{{ new Date(product.createdAt).toLocaleDateString('en-US', { day: 'numeric', month: 'short' }) }}</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </template>
+    </div>
+  </AppLayout>
 </template>
 
 <style scoped>
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
 .home-page {
-  min-height: 100vh;
-  background: linear-gradient(135deg, #f5f7fa 0%, #e4e8eb 100%);
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  width: 100%;
 }
 
-/* Header Styles */
-.header {
+/* Hero Section with Gradient */
+.hero-section {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  padding: 1rem 2rem;
-  box-shadow: 0 4px 20px rgba(102, 126, 234, 0.3);
-  position: sticky;
-  top: 0;
-  z-index: 100;
+  border-radius: 20px;
+  padding: 2.5rem 2rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 10px 40px rgba(102, 126, 234, 0.3);
+  position: relative;
+  overflow: hidden;
 }
 
-.header-content {
-  max-width: 1400px;
-  margin: 0 auto;
+.hero-section::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -10%;
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+  border-radius: 50%;
+}
+
+.hero-content {
+  position: relative;
+  z-index: 1;
   display: flex;
-  align-items: center;
   justify-content: space-between;
-}
-
-.logo {
-  display: flex;
   align-items: center;
-  gap: 0.75rem;
 }
 
-.logo-icon {
-  font-size: 2rem;
-}
-
-.logo h1 {
+.hero-title {
+  font-size: 2.5rem;
+  font-weight: 800;
   color: white;
-  font-size: 1.5rem;
-  font-weight: 700;
+  margin-bottom: 0.5rem;
   letter-spacing: -0.5px;
 }
 
-.nav-menu {
-  display: flex;
-  gap: 0.5rem;
+.hero-subtitle {
+  font-size: 1.1rem;
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: 400;
 }
 
-.nav-link {
-  color: rgba(255, 255, 255, 0.85);
-  text-decoration: none;
-  padding: 0.5rem 1rem;
-  border-radius: 8px;
-  transition: all 0.3s ease;
-  font-weight: 500;
-}
-
-.nav-link:hover,
-.nav-link.active {
-  background: rgba(255, 255, 255, 0.2);
-  color: white;
-}
-
-.user-menu {
+.hero-date {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.75rem;
   background: rgba(255, 255, 255, 0.15);
-  padding: 0.5rem 1rem;
-  border-radius: 50px;
-  color: white;
-}
-
-.user-avatar {
-  font-size: 1.25rem;
-}
-
-.user-name {
-  font-weight: 500;
-}
-
-/* Main Content */
-.main-content {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 2rem;
-}
-
-/* Welcome Section */
-.welcome-section {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 2rem;
-  background: white;
-  padding: 1.5rem 2rem;
-  border-radius: 16px;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
-}
-
-.welcome-text h2 {
-  font-size: 1.75rem;
-  color: #1f2937;
-  margin-bottom: 0.25rem;
-}
-
-.welcome-text p {
-  color: #6b7280;
-  font-size: 1rem;
-}
-
-.date-display {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  color: #6b7280;
-  background: #f3f4f6;
-  padding: 0.75rem 1.25rem;
-  border-radius: 50px;
+  backdrop-filter: blur(10px);
+  padding: 1rem 1.5rem;
+  border-radius: 100px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .date-icon {
-  font-size: 1.25rem;
+  font-size: 1.5rem;
 }
 
-/* Stats Section */
+.date-text {
+  color: white;
+  font-weight: 500;
+  font-size: 0.95rem;
+}
+
+/* Loading State */
+.loading-container {
+  text-align: center;
+  padding: 4rem 2rem;
+  background: white;
+  border-radius: 20px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+}
+
+.spinner {
+  width: 60px;
+  height: 60px;
+  margin: 0 auto 1.5rem;
+  border: 5px solid #f3f4f6;
+  border-top: 5px solid #667eea;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Stats Section with Glassmorphism */
 .stats-section {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 1.5rem;
-  margin-bottom: 2rem;
+  margin-bottom: 2.5rem;
+}
+
+.stat-card-link {
+  text-decoration: none;
 }
 
 .stat-card {
   background: white;
-  padding: 1.5rem;
-  border-radius: 16px;
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
-  transition: all 0.3s ease;
-  border-left: 4px solid var(--accent-color);
+  border-radius: 18px;
+  padding: 1.75rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  position: relative;
+  overflow: hidden;
 }
 
 .stat-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+  transform: translateY(-8px);
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.12);
+}
+
+.stat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.stat-icon-wrapper {
+  background: linear-gradient(135deg, var(--accent-color), var(--accent-color));
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
 }
 
 .stat-icon {
-  font-size: 2.5rem;
-  background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
-  padding: 1rem;
-  border-radius: 12px;
+  font-size: 1.75rem;
+  filter: brightness(1.2);
 }
 
-.stat-info {
-  display: flex;
-  flex-direction: column;
+.stat-trend {
+  font-size: 0.875rem;
+  font-weight: 700;
+  padding: 0.35rem 0.75rem;
+  border-radius: 50px;
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.stat-trend.positive {
+  background: #d1fae5;
+  color: #059669;
+}
+
+.stat-trend.negative {
+  background: #fee2e2;
+  color: #dc2626;
 }
 
 .stat-value {
-  font-size: 1.75rem;
-  font-weight: 700;
+  font-size: 2rem;
+  font-weight: 800;
   color: #1f2937;
+  margin-bottom: 0.25rem;
+  line-height: 1;
 }
 
 .stat-label {
+  font-size: 0.95rem;
   color: #6b7280;
-  font-size: 0.9rem;
+  font-weight: 500;
 }
 
-/* Section Title */
+.stat-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--accent-color), transparent);
+  opacity: 0.5;
+}
+
+/* Section Header */
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
 .section-title {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  font-size: 1.25rem;
+  gap: 0.75rem;
+  font-size: 1.5rem;
+  font-weight: 700;
   color: #1f2937;
-  margin-bottom: 1.25rem;
+  margin: 0;
 }
 
 .title-icon {
-  font-size: 1.5rem;
+  font-size: 1.75rem;
 }
 
-/* Quick Actions */
+.section-subtitle {
+  color: #6b7280;
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+.view-all-link {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #667eea;
+  font-weight: 600;
+  text-decoration: none;
+  font-size: 0.95rem;
+  transition: all 0.2s ease;
+}
+
+.view-all-link:hover {
+  gap: 0.75rem;
+  color: #764ba2;
+}
+
+/* Quick Actions with Gradient Cards */
 .quick-actions-section {
-  margin-bottom: 2rem;
+  margin-bottom: 2.5rem;
 }
 
 .actions-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 1rem;
+  gap: 1.25rem;
 }
 
 .action-card {
   background: white;
-  padding: 1.25rem;
-  border-radius: 12px;
+  border-radius: 18px;
+  padding: 1.75rem;
   display: flex;
   align-items: center;
-  gap: 1rem;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  gap: 1.25rem;
+  text-decoration: none;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  position: relative;
+  overflow: hidden;
+}
+
+.action-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--card-gradient);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.action-card:hover::before {
+  opacity: 1;
 }
 
 .action-card:hover {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  transform: translateX(5px);
+  transform: translateY(-6px);
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.15);
 }
 
-.action-card:hover .action-content h4,
-.action-card:hover .action-content p,
+.action-card:hover .action-icon-wrapper {
+  background: white;
+}
+
+.action-card:hover .action-title,
+.action-card:hover .action-description,
 .action-card:hover .action-arrow {
   color: white;
 }
 
+.action-icon-wrapper {
+  width: 60px;
+  height: 60px;
+  background: linear-gradient(135deg, #f3f4f6, #e5e7eb);
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.3s ease;
+  position: relative;
+  z-index: 1;
+}
+
 .action-icon {
-  font-size: 2rem;
-  background: #f3f4f6;
-  padding: 0.75rem;
-  border-radius: 10px;
+  font-size: 1.75rem;
 }
 
 .action-content {
   flex: 1;
+  position: relative;
+  z-index: 1;
 }
 
-.action-content h4 {
-  font-size: 1rem;
+.action-title {
+  font-size: 1.1rem;
+  font-weight: 700;
   color: #1f2937;
-  margin-bottom: 0.25rem;
+  margin: 0 0 0.25rem 0;
   transition: color 0.3s ease;
 }
 
-.action-content p {
-  font-size: 0.85rem;
+.action-description {
+  font-size: 0.875rem;
   color: #6b7280;
+  margin: 0;
   transition: color 0.3s ease;
 }
 
 .action-arrow {
-  font-size: 1.25rem;
   color: #9ca3af;
-  transition: color 0.3s ease;
+  transition: all 0.3s ease;
+  position: relative;
+  z-index: 1;
 }
 
-/* Recent Products Table */
+/* Modern Table */
 .recent-section {
   background: white;
-  padding: 1.5rem;
-  border-radius: 16px;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+  border-radius: 20px;
+  padding: 2rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(0, 0, 0, 0.05);
 }
 
-.products-table-wrapper {
+.table-wrapper {
   overflow-x: auto;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
 }
 
-.products-table {
+.modern-table {
   width: 100%;
   border-collapse: collapse;
+  font-size: 0.95rem;
 }
 
-.products-table th,
-.products-table td {
-  padding: 1rem;
+.modern-table thead {
+  background: linear-gradient(135deg, #f9fafb, #f3f4f6);
+}
+
+.modern-table th {
+  padding: 1rem 1.25rem;
   text-align: left;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.products-table th {
-  background: #f9fafb;
+  font-weight: 700;
+  font-size: 0.8rem;
   color: #6b7280;
-  font-weight: 600;
-  font-size: 0.85rem;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  border-bottom: 2px solid #e5e7eb;
 }
 
-.products-table tbody tr {
-  transition: background 0.2s ease;
+.modern-table td {
+  padding: 1.25rem 1.25rem;
+  border-bottom: 1px solid #f3f4f6;
 }
 
-.products-table tbody tr:hover {
+.modern-table tbody tr {
+  transition: all 0.2s ease;
+}
+
+.modern-table tbody tr:hover {
   background: #f9fafb;
+}
+
+.modern-table tbody tr:last-child td {
+  border-bottom: none;
 }
 
 .product-id {
+  font-family: 'Monaco', 'Courier New', monospace;
+  font-size: 0.85rem;
   color: #6b7280;
-  font-family: monospace;
+  font-weight: 600;
+  background: #f3f4f6;
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+}
+
+.product-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
 }
 
 .product-name {
   font-weight: 600;
   color: #1f2937;
+  font-size: 0.95rem;
 }
 
-.product-price {
-  color: #059669;
+.product-desc {
+  font-size: 0.8rem;
+  color: #9ca3af;
+}
+
+.category-tag {
+  display: inline-block;
+  padding: 0.4rem 0.85rem;
+  background: linear-gradient(135deg, #e0e7ff, #c7d2fe);
+  color: #4338ca;
+  border-radius: 50px;
+  font-size: 0.8rem;
   font-weight: 600;
 }
 
-.category-badge {
-  background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
-  color: #4338ca;
-  padding: 0.35rem 0.75rem;
-  border-radius: 50px;
-  font-size: 0.8rem;
-  font-weight: 500;
+.product-price {
+  font-weight: 700;
+  color: #059669;
+  font-size: 1rem;
 }
 
 .stock-badge {
-  background: #d1fae5;
-  color: #059669;
-  padding: 0.35rem 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.85rem;
   border-radius: 50px;
-  font-size: 0.8rem;
-  font-weight: 500;
+  font-size: 0.85rem;
+  font-weight: 600;
 }
 
 .stock-badge.low {
@@ -493,62 +736,97 @@ const formatPrice = (price: number) => {
   color: #dc2626;
 }
 
-.actions-cell {
-  display: flex;
-  gap: 0.5rem;
+.stock-badge.medium {
+  background: #fef3c7;
+  color: #d97706;
 }
 
-.btn-icon {
-  background: #f3f4f6;
-  border: none;
-  padding: 0.5rem;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  font-size: 1rem;
+.stock-badge.high {
+  background: #d1fae5;
+  color: #059669;
 }
 
-.btn-icon:hover {
-  background: #e5e7eb;
-  transform: scale(1.1);
+.stock-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
 }
 
-.btn-icon.delete:hover {
-  background: #fee2e2;
-}
-
-/* Footer */
-.footer {
+/* Empty State */
+.empty-state {
   text-align: center;
-  padding: 2rem;
+  padding: 4rem 2rem;
+}
+
+.empty-icon {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+  opacity: 0.5;
+}
+
+.empty-text {
   color: #6b7280;
-  margin-top: 2rem;
+  font-size: 1.1rem;
+  margin-bottom: 1.5rem;
+}
+
+.btn-add-product {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.875rem 1.75rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-radius: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+}
+
+.btn-add-product:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
 }
 
 /* Responsive */
 @media (max-width: 768px) {
-  .header-content {
+  .hero-content {
     flex-direction: column;
-    gap: 1rem;
-  }
-
-  .nav-menu {
-    flex-wrap: wrap;
-    justify-content: center;
-  }
-
-  .welcome-section {
-    flex-direction: column;
+    gap: 1.5rem;
     text-align: center;
-    gap: 1rem;
   }
 
-  .main-content {
-    padding: 1rem;
+  .hero-title {
+    font-size: 2rem;
   }
 
   .stats-section {
     grid-template-columns: 1fr;
+  }
+
+  .actions-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .table-wrapper {
+    border-radius: 0;
+  }
+
+  .modern-table {
+    font-size: 0.85rem;
+  }
+
+  .modern-table th,
+  .modern-table td {
+    padding: 0.75rem 0.875rem;
+  }
+
+  .section-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
   }
 }
 </style>
